@@ -26,23 +26,20 @@ jobs:
       - name: Setup Zig
         run: |
           sudo apt install xz-utils
-          sudo sh -c 'wget -c https://pkg.machengine.org/zig/zig-linux-x86_64-0.13.0-dev.351+64ef45eb0.tar.xz -O - | tar -xJ --strip-components=1 -C /usr/local/bin'
-      # - name: x86_64-linux -> x86_64-linux-musl
-      #   run: zig build -Dtarget=x86_64-linux-musl
-      - name: x86_64-linux -> x86_64-macos
-        run: zig build -Dtarget=x86_64-macos
-      - name: x86_64-linux -> aarch64-macos
-        run: zig build -Dtarget=aarch64-macos
-      - name: x86_64-linux -> x86_64-windows
-        run: zig build -Dtarget=x86_64-windows-gnu
+          sudo sh -c 'wget -c https://pkg.machengine.org/zig/zig-linux-x86_64-0.14.0-dev.1710+8ee52f99c.tar.xz -O - | tar -xJ --strip-components=1 -C /usr/local/bin'
       - name: launch xvfb
         run: Xvfb :99 -screen 0 1680x720x24 > /dev/null 2>&1 &
-      # TODO: do we actually need this?
-      - name: install Linux dependencies
-        run: |
-          sudo add-apt-repository -y ppa:kisak/kisak-mesa
-          sudo apt-get update
-          sudo apt-get install mesa-utils mesa-utils-extra mesa-va-drivers mesa-vdpau-drivers mesa-vulkan-drivers xvfb pulseaudio jackd
+      # - name: x86_64-linux -> x86_64-linux-musl
+      #   run: zig build -Dtarget=x86_64-linux-musl
+      # TODO(build): currently cannot link on macOS due to a bug in the Zig linker. https://github.com/hexops/mach/issues/1276
+      # - name: x86_64-linux -> x86_64-macos
+      #   run: zig build -Dtarget=x86_64-macos
+      # - name: x86_64-linux -> aarch64-macos
+      #   run: zig build -Dtarget=aarch64-macos
+      - name: x86_64-linux -> x86_64-windows
+        run: zig build -Dtarget=x86_64-windows-gnu
+      - name: build
+        run: zig build
       - name: test
         run: zig build test
       - name: test (with core deps only)
@@ -53,14 +50,17 @@ jobs:
         run: zig build -Dsysgpu test
       - name: test (specific deps only)
         run: zig build -Dcore -Dsysaudio -Dsysgpu test
-      - name: 'sysgpu: validate spirv code generation'
-        run: |
-          wget -qO- https://packages.lunarg.com/lunarg-signing-key-pub.asc | sudo tee /etc/apt/trusted.gpg.d/lunarg.asc
-          sudo wget -qO /etc/apt/sources.list.d/lunarg-vulkan-jammy.list http://packages.lunarg.com/vulkan/lunarg-vulkan-jammy.list
-          sudo apt update
-          sudo apt install vulkan-sdk spirv-tools
-      - name: 'sysgpu: validate spirv output'
-        run: bash ./src/sysgpu/tools/validate_spirv.sh
+      ## TODO: use hexops/spirv-tools for spirv validation instead OR if we are using ZLS finally, just remove this commented block
+      ## The following block throws this error, so it is disabled for now:
+      ## https://github.com/hexops/mach/actions/runs/11223060751/job/31196848244?pr=1279#step:14:79
+      # - name: 'sysgpu: validate spirv code generation'
+      #   run: |
+      #     wget -qO- https://packages.lunarg.com/lunarg-signing-key-pub.asc | sudo tee /etc/apt/trusted.gpg.d/lunarg.asc
+      #     sudo wget -qO /etc/apt/sources.list.d/lunarg-vulkan-jammy.list http://packages.lunarg.com/vulkan/lunarg-vulkan-jammy.list
+      #     sudo apt update
+      #     sudo apt install libyaml-cpp-dev vulkan-sdk spirv-tools
+      # - name: 'sysgpu: validate spirv output'
+      #   run: bash ./src/sysgpu/tools/validate_spirv.sh
   x86_64-windows:
     runs-on: windows-latest
     # We want to run on external PRs, but not on our own internal PRs as they'll be run by the push
@@ -72,10 +72,12 @@ jobs:
       - name: Setup Zig
         run: |
           $ProgressPreference = 'SilentlyContinue'
-          Invoke-WebRequest -Uri 'https://pkg.machengine.org/zig/zig-windows-x86_64-0.13.0-dev.351+64ef45eb0.zip' -OutFile 'C:\zig.zip'
+          Invoke-WebRequest -Uri 'https://pkg.machengine.org/zig/zig-windows-x86_64-0.14.0-dev.1710+8ee52f99c.zip' -OutFile 'C:\zig.zip'
           cd C:\
           7z x zig.zip
-          Add-Content $env:GITHUB_PATH 'C:\zig-windows-x86_64-0.13.0-dev.351+64ef45eb0\'
+          Add-Content $env:GITHUB_PATH 'C:\zig-windows-x86_64-0.14.0-dev.1710+8ee52f99c\'
+      - name: build
+        run: zig build
       - name: test
         run: zig build test
   x86_64-macos:
@@ -90,6 +92,8 @@ jobs:
         run: |
           brew uninstall --ignore-dependencies libx11 # https://github.com/ziglang/zig/issues/11066
           brew install xz
-          sudo sh -c 'wget -c https://pkg.machengine.org/zig/zig-macos-x86_64-0.13.0-dev.351+64ef45eb0.tar.xz -O - | tar -xJ --strip-components=1 -C /usr/local/bin'
+          sudo sh -c 'wget -c https://pkg.machengine.org/zig/zig-macos-x86_64-0.14.0-dev.1710+8ee52f99c.tar.xz -O - | tar -xJ --strip-components=1 -C /usr/local/bin'
+      - name: build
+        run: zig build
       - name: test
         run: zig build test

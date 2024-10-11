@@ -1,4 +1,3 @@
-const std = @import("std");
 const mach = @import("mach");
 const gpu = mach.gpu;
 
@@ -6,19 +5,29 @@ pub const name = .app;
 pub const Mod = mach.Mod(@This());
 
 pub const systems = .{
+    .start = .{ .handler = start },
     .init = .{ .handler = init },
     .deinit = .{ .handler = deinit },
-    .update = .{ .handler = update },
+    .tick = .{ .handler = tick },
 };
 
-title_timer: mach.Timer,
+title_timer: mach.time.Timer,
 pipeline: *gpu.RenderPipeline,
 
-pub fn deinit(game: *Mod) void {
-    game.state().pipeline.release();
+pub fn deinit(core: *mach.Core.Mod, app: *Mod) void {
+    app.state().pipeline.release();
+    core.schedule(.deinit);
 }
 
-fn init(game: *Mod, core: *mach.Core.Mod) !void {
+fn start(app: *Mod, core: *mach.Core.Mod) !void {
+    core.schedule(.init);
+    app.schedule(.init);
+}
+
+fn init(app: *Mod, core: *mach.Core.Mod) !void {
+    core.state().on_tick = app.system(.tick);
+    core.state().on_exit = app.system(.deinit);
+
     // Create our shader module
     const shader_module = core.state().device.createShaderModuleWGSL("shader.wgsl", @embedFile("shader.wgsl"));
     defer shader_module.release();
@@ -52,18 +61,17 @@ fn init(game: *Mod, core: *mach.Core.Mod) !void {
     const pipeline = core.state().device.createRenderPipeline(&pipeline_descriptor);
 
     // Store our render pipeline in our module's state, so we can access it later on.
-    game.init(.{
-        .title_timer = try mach.Timer.start(),
+    app.init(.{
+        .title_timer = try mach.time.Timer.start(),
         .pipeline = pipeline,
     });
     try updateWindowTitle(core);
+
+    core.schedule(.start);
 }
 
-fn update(core: *mach.Core.Mod, game: *Mod) !void {
-    // TODO(important): event polling should occur in mach.Core module and get fired as ECS event.
-    // TODO(Core)
-    var iter = core.state().pollEvents();
-    while (iter.next()) |event| {
+fn tick(core: *mach.Core.Mod, app: *Mod) !void {
+    while (core.state().nextEvent()) |event| {
         switch (event) {
             .close => core.schedule(.exit), // Tell mach.Core to exit the app
             else => {},
@@ -95,7 +103,7 @@ fn update(core: *mach.Core.Mod, game: *Mod) !void {
     defer render_pass.release();
 
     // Draw
-    render_pass.setPipeline(game.state().pipeline);
+    render_pass.setPipeline(app.state().pipeline);
     render_pass.draw(3, 1, 0, 0);
 
     // Finish render pass
@@ -106,11 +114,12 @@ fn update(core: *mach.Core.Mod, game: *Mod) !void {
     defer command.release();
     core.state().queue.submit(&[_]*gpu.CommandBuffer{command});
 
+    // Present the frame
     core.schedule(.present_frame);
 
     // update the window title every second
-    if (game.state().title_timer.read() >= 1.0) {
-        game.state().title_timer.reset();
+    if (app.state().title_timer.read() >= 1.0) {
+        app.state().title_timer.reset();
         try updateWindowTitle(core);
     }
 }
@@ -125,4 +134,5 @@ fn updateWindowTitle(core: *mach.Core.Mod) !void {
             core.state().inputRate(),
         },
     );
+    core.schedule(.update);
 }
