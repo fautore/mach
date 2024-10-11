@@ -376,6 +376,7 @@ fn buildExamples(
         .{ .name = "play-opus", .deps = &.{.assets} },
         // .{ .name = "sprite", .deps = &.{ .zigimg, .assets } },
         .{ .name = "text", .deps = &.{.assets} },
+        .{ .name = "rotating-cube", .deps = &.{} },
     }) |example| {
         const exe = b.addExecutable(.{
             .name = if (example.core) b.fmt("core-{s}", .{example.name}) else example.name,
